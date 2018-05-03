@@ -1,28 +1,29 @@
 package main;
-import twitter4j.Status;
-import twitter4j.Twitter;
-import twitter4j.TwitterException;
-import twitter4j.TwitterFactory;
+import twitter4j.*;
+import twitter4j.conf.Configuration;
 import twitter4j.conf.ConfigurationBuilder;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Properties;
 
 public class TwitterBot {
-    private Properties properties;
-    private InputStream input;
-    private ConfigurationBuilder cb;
+    private Configuration configuration;
     private TwitterFactory tf;
     private Twitter twitter;
 
-    TwitterBot() {
-        properties = new Properties();
+    public TwitterBot() {
+        configuration = createConfiguration();
+        tf = new TwitterFactory(configuration);
+        twitter = tf.getInstance();
+    }
+
+    private Configuration createConfiguration() {
+        Properties properties = new Properties();
+        ConfigurationBuilder cb;
         try {
-            input = new FileInputStream("util/twitter.properties");
-            properties.load(input);
+            properties.load(new FileInputStream("util/twitter.properties"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -32,8 +33,7 @@ public class TwitterBot {
                 .setOAuthConsumerSecret(properties.getProperty("oauth.consumerSecret"))
                 .setOAuthAccessToken(properties.getProperty("oauth.accessToken"))
                 .setOAuthAccessTokenSecret(properties.getProperty("oauth.accessTokenSecret"));
-        tf = new TwitterFactory(cb.build());
-        twitter = tf.getInstance();
+        return cb.build();
     }
 
     public void setStatus(String latestStatus) {
@@ -64,8 +64,46 @@ public class TwitterBot {
         }
     }
 
+    public void streamListener() {
+        TwitterStream twitterStream = new TwitterStreamFactory(configuration).getInstance();
+        StatusListener listener = new StatusListener() {
+            @Override
+            public void onStatus(Status status) {
+                System.out.println("@" + status.getUser().getScreenName() + " - " + status.getText());
+            }
+
+            @Override
+            public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
+                System.out.println("Got a status deletion notice id:" + statusDeletionNotice.getStatusId());
+            }
+
+            @Override
+            public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
+                System.out.println("Got track limitation notice:" + numberOfLimitedStatuses);
+            }
+
+            @Override
+            public void onScrubGeo(long userId, long upToStatusId) {
+                System.out.println("Got scrub_geo event userId:" + userId + " upToStatusId:" + upToStatusId);
+            }
+
+            @Override
+            public void onStallWarning(StallWarning warning) {
+                System.out.println("Got stall warning:" + warning);
+            }
+
+            @Override
+            public void onException(Exception ex) {
+                ex.printStackTrace();
+            }
+        };
+        twitterStream.addListener(listener);
+        twitterStream.sample();
+    }
+
     public static void main(String[] args) {
         TwitterBot tb = new TwitterBot();
-        tb.retweetUser("realDonaldTrump");
+//        tb.retweetUser("realDonaldTrump");
+        tb.streamListener();
     }
 }
